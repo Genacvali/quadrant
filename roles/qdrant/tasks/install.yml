@@ -108,6 +108,28 @@
         mode: "0755"
         remote_src: true
       register: qdrant_binary_result
+
+    # Ловим несовместимость с glibc/архитектурой до старта сервиса
+    - name: Verify installed qdrant binary runs
+      ansible.builtin.command: "{{ qdrant_bin_path }} --version"
+      register: qdrant_binary_check
+      changed_when: false
+      failed_when: false
+
+    - name: Installed qdrant binary does not run
+      ansible.builtin.fail:
+        msg: |
+          {{ qdrant_bin_path }} ({{ qdrant_target_triple }}) does not run on this host:
+          {{ qdrant_binary_check.stderr | default(qdrant_binary_check.msg) }}
+
+          Usually this is a glibc mismatch. Use the static musl build:
+            qdrant_target_triple: "{{ ansible_architecture }}-unknown-linux-musl"
+      when: qdrant_binary_check.rc != 0
+
+    - name: Check installed version matches desired
+      ansible.builtin.fail:
+        msg: "Installed qdrant reports '{{ qdrant_binary_check.stdout }}', expected {{ qdrant_desired_version }}"
+      when: (qdrant_binary_check.stdout | regex_search('[0-9]+\\.[0-9]+\\.[0-9]+')) != qdrant_desired_version
   always:
     - name: Clean up temporary directory
       ansible.builtin.file:

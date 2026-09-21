@@ -1,9 +1,11 @@
 ---
 # vars file for qdrant
 
-# Соответствие ansible_architecture -> target triple бинарника в релизах Qdrant
+# Соответствие ansible_architecture -> target triple бинарника в релизах Qdrant.
+# Используются musl-сборки: они статические и не зависят от версии glibc на хосте.
+# gnu-сборка Qdrant >= 1.19 требует GLIBC_2.38 и не запускается на RHEL 8/9.
 qdrant_target_triple_map:
-  x86_64: "x86_64-unknown-linux-gnu"
+  x86_64: "x86_64-unknown-linux-musl"
   aarch64: "aarch64-unknown-linux-musl"
 
 # Пакеты, необходимые для распаковки архивов

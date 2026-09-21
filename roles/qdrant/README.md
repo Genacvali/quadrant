@@ -17,8 +17,11 @@
 `qdrant_version` задаётся без префикса `v` (например `1.19.1`), тег релиза `v1.19.1` формируется автоматически. Например, для `qdrant_version: "1.19.1"` на x86_64 RedHat:
 
 ```
-https://nexus.sberdevices.ru/repository/raw_github.com_qdrant_qdrant_releases_proxy/download/v1.19.1/qdrant-x86_64-unknown-linux-gnu.tar.gz
+https://nexus.sberdevices.ru/repository/raw_github.com_qdrant_qdrant_releases_proxy/download/v1.19.1/qdrant-x86_64-unknown-linux-musl.tar.gz
 ```
+
+По умолчанию берётся статическая musl-сборка: gnu-сборка Qdrant >= 1.19 требует `GLIBC_2.38` и на RHEL 8/9 падает с
+`/lib64/libc.so.6: version 'GLIBC_2.38' not found`. После установки роль запускает `qdrant --version` и останавливается с понятной ошибкой, если бинарник не работает на хосте.
 
 Что делает роль при установке (`qdrant_install`):
 1. Открывает порты в firewalld (HTTP 6333, gRPC 6334, P2P 6335, metrics 6336).
@@ -116,7 +119,7 @@ qdrant_desired_action: qdrant_wipe
 | qdrant_version | Версия Qdrant без `v` (запись с `v` тоже допустима) | 1.19.1 | - |
 | qdrant_version_tag | Тег релиза для URL, формируется из `qdrant_version` | v{{ qdrant_version }} | - |
 | qdrant_nexus_base_url | Базовый URL Nexus-прокси релизов Qdrant | https://nexus.sberdevices.ru/repository/raw_github.com_qdrant_qdrant_releases_proxy/download | - |
-| qdrant_target_triple | Платформа бинарника; по умолчанию по `ansible_architecture` (x86_64 -> `x86_64-unknown-linux-gnu`, aarch64 -> `aarch64-unknown-linux-musl`) | auto | - |
+| qdrant_target_triple | Платформа бинарника; по умолчанию musl по `ansible_architecture` (x86_64 -> `x86_64-unknown-linux-musl`, aarch64 -> `aarch64-unknown-linux-musl`) | auto | - |
 | qdrant_archive_name | Имя архива | qdrant-{{ qdrant_target_triple }}.tar.gz | - |
 | qdrant_download_url | Полный URL архива | {{ qdrant_nexus_base_url }}/{{ qdrant_version_tag }}/{{ qdrant_archive_name }} | - |
 | qdrant_download_validate_certs | Проверять TLS-сертификат Nexus | true | - |
@@ -252,6 +255,7 @@ Release 1.2.0
 * Секция `cluster` в конфиге пишется только при `qdrant_cluster_enabled: true`
 * Запуск через `QDRANT_START_ARGS` в env-файле: standalone без `--uri`, кластер с `--uri` / `--bootstrap`
 * При провале health-check роль выводит `systemctl status qdrant` и `journalctl -u qdrant` (`qdrant_diag_journal_lines`)
+* По умолчанию musl-сборка бинарника (gnu требует GLIBC_2.38); после установки проверяется `qdrant --version`
 
 Release 1.1.0
 * Скачивание бинарника из Nexus `raw_github.com_qdrant_qdrant_releases_proxy` с подстановкой версии и платформы

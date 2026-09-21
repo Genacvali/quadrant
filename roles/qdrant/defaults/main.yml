@@ -12,11 +12,12 @@ qdrant_group: "qdrant"
 
 # Download (Nexus proxy for github.com/qdrant/qdrant/releases)
 qdrant_nexus_base_url: "https://nexus.sberdevices.ru/repository/raw_github.com_qdrant_qdrant_releases_proxy/download"
-# Target triple бинарника. По умолчанию выбирается по архитектуре хоста (см. vars/main.yml).
+# Target triple бинарника. По умолчанию musl-сборка по архитектуре хоста (см. vars/main.yml) -
+# статическая, работает на любом glibc. gnu-сборка требует GLIBC_2.38 (RHEL 8/9 не подходит).
 # Доступные варианты в релизах Qdrant:
-#   x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-musl,
+#   x86_64-unknown-linux-musl, aarch64-unknown-linux-musl, x86_64-unknown-linux-gnu,
 #   x86_64-apple-darwin, aarch64-apple-darwin
-qdrant_target_triple: "{{ qdrant_target_triple_map[ansible_architecture] | default('x86_64-unknown-linux-gnu') }}"
+qdrant_target_triple: "{{ qdrant_target_triple_map[ansible_architecture] | default('x86_64-unknown-linux-musl') }}"
 qdrant_archive_name: "qdrant-{{ qdrant_target_triple }}.tar.gz"
 qdrant_download_url: "{{ qdrant_nexus_base_url }}/{{ qdrant_version_tag }}/{{ qdrant_archive_name }}"
 qdrant_download_validate_certs: true
