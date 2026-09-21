@@ -11,10 +11,10 @@
 Бинарник скачивается из Nexus (proxy для GitHub releases), версия и целевая платформа подставляются в URL:
 
 ```
-{{ qdrant_nexus_base_url }}/{{ qdrant_version }}/qdrant-{{ qdrant_target_triple }}.tar.gz
+{{ qdrant_nexus_base_url }}/{{ qdrant_version_tag }}/qdrant-{{ qdrant_target_triple }}.tar.gz
 ```
 
-Например, для `qdrant_version: v1.19.1` на x86_64 RedHat:
+`qdrant_version` задаётся без префикса `v` (например `1.19.1`), тег релиза `v1.19.1` формируется автоматически. Например, для `qdrant_version: "1.19.1"` на x86_64 RedHat:
 
 ```
 https://nexus.sberdevices.ru/repository/raw_github.com_qdrant_qdrant_releases_proxy/download/v1.19.1/qdrant-x86_64-unknown-linux-gnu.tar.gz
@@ -26,8 +26,8 @@ https://nexus.sberdevices.ru/repository/raw_github.com_qdrant_qdrant_releases_pr
 3. Проверяет установленную версию (`qdrant --version`). Если она отличается от `qdrant_version` (или задан `qdrant_force_reinstall`) - скачивает архив из Nexus и устанавливает бинарник в `/usr/local/bin/qdrant`.
 4. Устанавливает Web-UI из `dist-qdrant.zip` (если архив есть на хосте или задан `qdrant_web_ui_url`) в `{{ qdrant_static_path }}`.
 5. Определяет API-ключ: явный из inventory -> из существующего конфига -> генерирует новый (одинаковый на всех узлах кластера).
-6. Шаблонизирует конфиг `/etc/qdrant/qdrant.yaml` (0600), env-файл `/etc/qdrant/qdrant.env` и unit `/etc/systemd/system/qdrant.service`.
-7. Запускает сервис: сначала первый узел, после его готовности (`/healthz`) - остальные по одному. При смене бинарника/конфига выполняет рестарт.
+6. Шаблонизирует конфиг `/etc/qdrant/qdrant.yaml` (0600), env-файл `/etc/qdrant/qdrant.env` (`QDRANT_START_ARGS`) и unit `/etc/systemd/system/qdrant.service`.
+7. Запускает сервис. Standalone - просто `qdrant --config-path ...`. Кластер - сначала первый узел (`--uri`), после его готовности (`/healthz`) остальные по одному (`--uri ... --bootstrap <первый узел>`). При смене бинарника/конфига выполняет рестарт.
 8. Выводит итоговую сводку (URL, пути, API-ключ).
 
 ## Skip and tags
@@ -38,18 +38,42 @@ https://nexus.sberdevices.ru/repository/raw_github.com_qdrant_qdrant_releases_pr
 ## Configuration examples
 
 ### Установка Qdrant Standalone (как в bash-скрипте)
+Секция `cluster` в конфиг не пишется, сервис стартует как `qdrant --config-path /etc/qdrant/qdrant.yaml`.
+
 ```yaml
+# inventory / group_vars
 qdrant_desired_action: qdrant_install
-qdrant_version: "v1.19.1"
+qdrant_version: "1.19.1"
+qdrant_cluster_enabled: false
 ```
 
 ### Установка Qdrant в кластерном режиме
 Первый хост из `ansible_play_batch` становится bootstrap-узлом. API-ключ генерируется на нём и раздаётся остальным.
+Все узлы кластера должны попадать в один play (без `serial`), иначе роль не увидит первый узел.
 
 ```yaml
+# hosts.yml
+qdrant:
+  hosts:
+    qdrant-01:
+      ansible_host: 172.19.13.124   # первый в списке - bootstrap-узел
+    qdrant-02:
+      ansible_host: 172.19.13.123
+    qdrant-03:
+      ansible_host: 172.19.13.125
+
+# group_vars/qdrant.yml
 qdrant_desired_action: qdrant_install
-qdrant_version: "v1.19.1"
+qdrant_version: "1.19.1"
 qdrant_cluster_enabled: true
+qdrant_http_port: 8033            # при необходимости
+qdrant_default_replication_factor: 2
+```
+
+Результат на не-первом узле:
+```
+# /etc/qdrant/qdrant.env
+QDRANT_START_ARGS=--config-path /etc/qdrant/qdrant.yaml --uri http://172.19.13.123:6335 --bootstrap http://172.19.13.124:6335
 ```
 
 ### Установка с TLS
@@ -89,11 +113,12 @@ qdrant_desired_action: qdrant_wipe
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | qdrant_desired_action | Действие с ролью, повторяет значения тегов | nothing | + |
-| qdrant_version | Версия Qdrant (тег релиза, с `v`) | v1.19.1 | - |
+| qdrant_version | Версия Qdrant без `v` (запись с `v` тоже допустима) | 1.19.1 | - |
+| qdrant_version_tag | Тег релиза для URL, формируется из `qdrant_version` | v{{ qdrant_version }} | - |
 | qdrant_nexus_base_url | Базовый URL Nexus-прокси релизов Qdrant | https://nexus.sberdevices.ru/repository/raw_github.com_qdrant_qdrant_releases_proxy/download | - |
 | qdrant_target_triple | Платформа бинарника; по умолчанию по `ansible_architecture` (x86_64 -> `x86_64-unknown-linux-gnu`, aarch64 -> `aarch64-unknown-linux-musl`) | auto | - |
 | qdrant_archive_name | Имя архива | qdrant-{{ qdrant_target_triple }}.tar.gz | - |
-| qdrant_download_url | Полный URL архива | {{ qdrant_nexus_base_url }}/{{ qdrant_version }}/{{ qdrant_archive_name }} | - |
+| qdrant_download_url | Полный URL архива | {{ qdrant_nexus_base_url }}/{{ qdrant_version_tag }}/{{ qdrant_archive_name }} | - |
 | qdrant_download_validate_certs | Проверять TLS-сертификат Nexus | true | - |
 | qdrant_download_timeout | Таймаут скачивания, сек | 120 | - |
 | qdrant_bin_path | Путь установки бинарника | /usr/local/bin/qdrant | - |
@@ -119,7 +144,7 @@ qdrant_desired_action: qdrant_wipe
 | qdrant_grpc_port | gRPC порт | 6334 | - |
 | qdrant_p2p_port | P2P порт для кластера | 6335 | - |
 | qdrant_metrics_port | Отдельный порт `/metrics` для мониторинга (без API-key) | 6336 | - |
-| qdrant_cluster_enabled | Включение кластерного режима | false | - |
+| qdrant_cluster_enabled | Режим: `false` - standalone (без секции `cluster`, без `--uri`), `true` - кластер (`--uri` / `--bootstrap`) | false | - |
 | qdrant_tls_enabled | Включение TLS для API | false | - |
 | qdrant_p2p_tls_enabled | Включение TLS для P2P коммуникаций | false | - |
 | qdrant_tls_cert | Путь к сертификату | {{ qdrant_tls_dir }}/server.crt | - |
@@ -180,7 +205,7 @@ qdrant_desired_action: qdrant_wipe
 /usr/local/bin/qdrant                 # бинарник
 /etc/qdrant/
 ├── qdrant.yaml                       # основной конфиг (0600, qdrant:qdrant)
-├── qdrant.env                        # env для systemd (QDRANT_URI, BOOTSTRAP_NODE)
+├── qdrant.env                        # env для systemd (QDRANT_START_ARGS)
 └── ssl/                              # сертификаты (опционально)
 /etc/systemd/system/qdrant.service    # unit
 /data/lib/qdrant/                     # storage_path
@@ -189,12 +214,17 @@ qdrant_desired_action: qdrant_wipe
 └── qdrant.log                        # лог
 ```
 
-## Cluster Setup
+## Standalone vs Cluster
 
-1. Первый узел в `ansible_play_batch` становится bootstrap-узлом: запускается с `--uri http://<ip>:6335`.
-2. Остальные узлы запускаются с `--uri http://<own_ip>:6335 --bootstrap http://<first_ip>:6335` после готовности первого.
-3. API-ключ единый для всех узлов.
-4. После запуска проверяется `/cluster`.
+| | `qdrant_cluster_enabled: false` | `qdrant_cluster_enabled: true` |
+|---|---|---|
+| Секция `cluster` в `qdrant.yaml` | отсутствует | `enabled: true`, `p2p.port`, `consensus` |
+| `QDRANT_START_ARGS` (первый узел) | `--config-path <cfg>` | `--config-path <cfg> --uri http://<ip>:6335` |
+| `QDRANT_START_ARGS` (остальные) | - | `--config-path <cfg> --uri http://<own_ip>:6335 --bootstrap http://<first_ip>:6335` |
+| Порядок запуска | один хост | первый узел -> `/healthz` -> остальные по одному |
+| Проверка | `/healthz` | `/healthz` + `/cluster` |
+
+Первый узел - первый хост в `ansible_play_batch`. API-ключ единый для всех узлов.
 
 ## API Endpoints
 
@@ -213,6 +243,11 @@ qdrant_desired_action: qdrant_wipe
 - Обновление версии сменой `qdrant_version`
 
 ## Changes and Releases
+
+Release 1.2.0
+* `qdrant_version` задаётся без префикса `v` (`1.19.1`); тег для URL - `qdrant_version_tag`
+* Секция `cluster` в конфиге пишется только при `qdrant_cluster_enabled: true`
+* Запуск через `QDRANT_START_ARGS` в env-файле: standalone без `--uri`, кластер с `--uri` / `--bootstrap`
 
 Release 1.1.0
 * Скачивание бинарника из Nexus `raw_github.com_qdrant_qdrant_releases_proxy` с подстановкой версии и платформы

@@ -3,8 +3,10 @@
 
 # Core configuration
 qdrant_desired_action: "nothing"
-# Версия Qdrant (тег релиза на GitHub, с префиксом "v"). Задаётся в inventory.
-qdrant_version: "v1.19.1"
+# Версия Qdrant без префикса "v" (например "1.19.1"). Задаётся в inventory.
+# Тег релиза (с "v") для URL формируется автоматически; запись "v1.19.1" тоже допустима.
+qdrant_version: "1.19.1"
+qdrant_version_tag: "v{{ qdrant_version | regex_replace('^v', '') }}"
 qdrant_user: "qdrant"
 qdrant_group: "qdrant"
 
@@ -16,7 +18,7 @@ qdrant_nexus_base_url: "https://nexus.sberdevices.ru/repository/raw_github.com_q
 #   x86_64-apple-darwin, aarch64-apple-darwin
 qdrant_target_triple: "{{ qdrant_target_triple_map[ansible_architecture] | default('x86_64-unknown-linux-gnu') }}"
 qdrant_archive_name: "qdrant-{{ qdrant_target_triple }}.tar.gz"
-qdrant_download_url: "{{ qdrant_nexus_base_url }}/{{ qdrant_version }}/{{ qdrant_archive_name }}"
+qdrant_download_url: "{{ qdrant_nexus_base_url }}/{{ qdrant_version_tag }}/{{ qdrant_archive_name }}"
 qdrant_download_validate_certs: true
 qdrant_download_timeout: 120
 qdrant_bin_path: "/usr/local/bin/qdrant"
@@ -53,6 +55,8 @@ qdrant_p2p_port: 6335
 qdrant_metrics_port: 6336
 
 # Cluster configuration
+# false - standalone: секция cluster в конфиг не пишется, qdrant стартует без --uri/--bootstrap.
+# true  - кластер: первый хост из ansible_play_batch стартует с --uri, остальные с --uri и --bootstrap.
 qdrant_cluster_enabled: false
 
 # TLS configuration (using pre-prepared certificates)

@@ -109,8 +109,9 @@ service:
   metrics_prefix: {{ qdrant_metrics_prefix }}
 {% endif %}
 
+{% if qdrant_cluster_enabled %}
 cluster:
-  enabled: {{ qdrant_cluster_enabled | lower }}
+  enabled: true
   p2p:
     port: {{ qdrant_p2p_port }}
     enable_tls: {{ qdrant_p2p_tls_enabled | lower }}
@@ -118,6 +119,7 @@ cluster:
     tick_period_ms: {{ qdrant_consensus_tick_period_ms }}
     compact_wal_entries: {{ qdrant_consensus_compact_wal_entries }}
 
+{% endif %}
 telemetry_disabled: {{ qdrant_telemetry_disabled | lower }}
 {% if qdrant_tls_enabled or qdrant_p2p_tls_enabled %}
 

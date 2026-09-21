@@ -85,7 +85,7 @@
         state: directory
         mode: "0755"
 
-    - name: Download qdrant {{ qdrant_version }} ({{ qdrant_target_triple }}) from Nexus
+    - name: Download qdrant {{ qdrant_version_tag }} ({{ qdrant_target_triple }}) from Nexus
       ansible.builtin.get_url:
         url: "{{ qdrant_download_url }}"
         dest: "{{ qdrant_tmp_dir }}/{{ qdrant_archive_name }}"
@@ -198,11 +198,12 @@
 - name: Qdrant installation summary
   ansible.builtin.debug:
     msg:
-      - "Qdrant {{ qdrant_version }} installed"
+      - "Qdrant {{ qdrant_desired_version }} installed"
       - "HTTP:    {{ qdrant_api_scheme }}://{{ qdrant_host }}:{{ qdrant_http_port }}"
       - "gRPC:    {{ qdrant_host }}:{{ qdrant_grpc_port }}"
       - "Metrics: http://{{ qdrant_host }}:{{ qdrant_metrics_port }}/metrics"
-      - "Cluster: {{ qdrant_p2p_uri }} (enabled: {{ qdrant_cluster_enabled }}, bootstrap: {{ qdrant_bootstrap_uri }})"
+      - "Mode:    {{ 'cluster' if qdrant_cluster_enabled else 'standalone' }}"
+      - "P2P:     {{ (qdrant_p2p_uri ~ ' (bootstrap: ' ~ qdrant_bootstrap_uri ~ ')') if qdrant_cluster_enabled else '-' }}"
       - "Config:  {{ qdrant_config_file }}"
       - "Data:    {{ qdrant_data_dir }}"
       - "API_KEY: {{ qdrant_api_key if qdrant_show_api_key else '<hidden>' }}"
