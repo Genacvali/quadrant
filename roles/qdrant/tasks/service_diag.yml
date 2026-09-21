@@ -1,0 +1,35 @@
+---
+# Диагностика при провале health-check: состояние unit и хвост журнала.
+# Вызывается из rescue в service.yml, всегда завершает роль ошибкой.
+
+- name: Get qdrant service status
+  ansible.builtin.command: systemctl status qdrant --no-pager -l
+  register: qdrant_diag_status
+  changed_when: false
+  failed_when: false
+
+- name: Get qdrant journal
+  ansible.builtin.command: journalctl -u qdrant -n {{ qdrant_diag_journal_lines }} --no-pager
+  register: qdrant_diag_journal
+  changed_when: false
+  failed_when: false
+
+- name: Show qdrant start args
+  ansible.builtin.command: cat {{ qdrant_env_file }}
+  register: qdrant_diag_env
+  changed_when: false
+  failed_when: false
+
+- name: Qdrant failed to start
+  ansible.builtin.fail:
+    msg: |
+      Qdrant did not answer on {{ qdrant_api_scheme }}://{{ qdrant_host }}:{{ qdrant_http_port }}/healthz
+
+      === {{ qdrant_env_file }} ===
+      {{ qdrant_diag_env.stdout }}
+
+      === systemctl status qdrant ===
+      {{ qdrant_diag_status.stdout }}
+
+      === journalctl -u qdrant -n {{ qdrant_diag_journal_lines }} ===
+      {{ qdrant_diag_journal.stdout }}

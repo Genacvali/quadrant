@@ -127,6 +127,12 @@ qdrant_telemetry_disabled: true
 # Показать API-ключ в итоговом выводе роли
 qdrant_show_api_key: true
 
+# Health check after start: retries * delay = max wait time, sec
+qdrant_healthcheck_retries: 12
+qdrant_healthcheck_delay: 5
+# Строк журнала journalctl -u qdrant в выводе при провале health-check
+qdrant_diag_journal_lines: 50
+
 # Metrics
 qdrant_metrics_enabled: true
 qdrant_metrics_prefix: "qdrant_"

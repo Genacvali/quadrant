@@ -185,6 +185,9 @@ qdrant_desired_action: qdrant_wipe
 | qdrant_jwt_rbac | Включение JWT RBAC | true | - |
 | qdrant_show_api_key | Показать API ключ в итоговом выводе роли | true | - |
 | qdrant_telemetry_disabled | Отключение телеметрии | true | - |
+| qdrant_healthcheck_retries | Попыток ожидания `/healthz` после старта | 12 | - |
+| qdrant_healthcheck_delay | Пауза между попытками, сек | 5 | - |
+| qdrant_diag_journal_lines | Строк `journalctl -u qdrant` в выводе при провале health-check | 50 | - |
 | qdrant_metrics_enabled | Включение метрик | true | - |
 | qdrant_metrics_prefix | Префикс метрик | qdrant_ | - |
 
@@ -248,6 +251,7 @@ Release 1.2.0
 * `qdrant_version` задаётся без префикса `v` (`1.19.1`); тег для URL - `qdrant_version_tag`
 * Секция `cluster` в конфиге пишется только при `qdrant_cluster_enabled: true`
 * Запуск через `QDRANT_START_ARGS` в env-файле: standalone без `--uri`, кластер с `--uri` / `--bootstrap`
+* При провале health-check роль выводит `systemctl status qdrant` и `journalctl -u qdrant` (`qdrant_diag_journal_lines`)
 
 Release 1.1.0
 * Скачивание бинарника из Nexus `raw_github.com_qdrant_qdrant_releases_proxy` с подстановкой версии и платформы
