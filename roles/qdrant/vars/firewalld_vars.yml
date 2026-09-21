@@ -1,0 +1,9 @@
+---
+# firewalld variables for qdrant
+firewalld:
+  - zone: public
+    ports:
+      - "{{ qdrant_http_port }}/tcp"
+      - "{{ qdrant_grpc_port }}/tcp"
+      - "{{ qdrant_p2p_port }}/tcp"
+      - "{{ qdrant_metrics_port }}/tcp"

@@ -1,0 +1,44 @@
+---
+- name: Stop qdrant service
+  ansible.builtin.systemd:
+    name: qdrant
+    state: stopped
+    enabled: false
+  failed_when: false
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Remove qdrant systemd service file
+  ansible.builtin.file:
+    path: "{{ qdrant_service_file }}"
+    state: absent
+  notify: Reload systemd
+
+- name: Remove qdrant binary
+  ansible.builtin.file:
+    path: "{{ qdrant_bin_path }}"
+    state: absent
+
+- name: Remove qdrant user
+  ansible.builtin.user:
+    name: "{{ qdrant_user }}"
+    state: absent
+
+- name: Remove qdrant group
+  ansible.builtin.group:
+    name: "{{ qdrant_group }}"
+    state: absent
+
+# TLS-директория ({{ qdrant_tls_dir }}) не удаляется - сертификаты готовятся внешним образом (vault-agent)
+- name: Remove qdrant files and directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  ignore_errors: "{{ ansible_check_mode }}"
+  loop:
+    - "{{ qdrant_config_file }}"
+    - "{{ qdrant_env_file }}"
+    - "{{ qdrant_storage_path }}"
+    - "{{ qdrant_snapshots_path }}"
+    - "{{ qdrant_static_path }}"
+    - "{{ qdrant_log_file }}"
+    - "{{ qdrant_data_dir }}"

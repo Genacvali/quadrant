@@ -1,0 +1,13 @@
+---
+# vars file for qdrant
+
+# Соответствие ansible_architecture -> target triple бинарника в релизах Qdrant
+qdrant_target_triple_map:
+  x86_64: "x86_64-unknown-linux-gnu"
+  aarch64: "aarch64-unknown-linux-musl"
+
+# Пакеты, необходимые для распаковки архивов
+qdrant_required_packages:
+  - tar
+  - gzip
+  - unzip

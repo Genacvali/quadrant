@@ -1,0 +1,75 @@
+---
+# Запуск/рестарт сервиса. Первый узел стартует первым (в кластере он инициализирует консенсус),
+# остальные узлы подключаются к нему по одному.
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Enable and start qdrant service on the first node
+  ansible.builtin.systemd:
+    name: qdrant
+    enabled: true
+    state: "{{ 'restarted' if (qdrant_restart_required | default(false) | bool) else 'started' }}"
+  when:
+    - qdrant_is_first_node
+    - not ansible_check_mode
+
+- name: Wait for qdrant to start on the first node
+  ansible.builtin.uri:
+    url: "{{ qdrant_api_scheme }}://{{ qdrant_host }}:{{ qdrant_http_port }}/healthz"
+    method: GET
+    timeout: 30
+    validate_certs: false
+    headers:
+      api-key: "{{ qdrant_api_key }}"
+  register: qdrant_health
+  retries: 12
+  delay: 5
+  until: qdrant_health.status == 200
+  when:
+    - qdrant_is_first_node
+    - not ansible_check_mode
+
+- name: Enable and start qdrant service on the other nodes
+  ansible.builtin.systemd:
+    name: qdrant
+    enabled: true
+    state: "{{ 'restarted' if (qdrant_restart_required | default(false) | bool) else 'started' }}"
+  throttle: 1
+  when:
+    - not qdrant_is_first_node
+    - not ansible_check_mode
+
+- name: Wait for qdrant to start on the other nodes
+  ansible.builtin.uri:
+    url: "{{ qdrant_api_scheme }}://{{ qdrant_host }}:{{ qdrant_http_port }}/healthz"
+    method: GET
+    timeout: 30
+    validate_certs: false
+    headers:
+      api-key: "{{ qdrant_api_key }}"
+  register: qdrant_health
+  retries: 12
+  delay: 5
+  until: qdrant_health.status == 200
+  when:
+    - not qdrant_is_first_node
+    - not ansible_check_mode
+
+- name: Verify cluster health
+  ansible.builtin.uri:
+    url: "{{ qdrant_api_scheme }}://{{ qdrant_host }}:{{ qdrant_http_port }}/cluster"
+    method: GET
+    timeout: 30
+    validate_certs: false
+    headers:
+      api-key: "{{ qdrant_api_key }}"
+  register: cluster_info
+  retries: 10
+  delay: 3
+  until: cluster_info.status == 200
+  when:
+    - qdrant_cluster_enabled
+    - not ansible_check_mode

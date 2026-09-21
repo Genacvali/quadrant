@@ -1,0 +1,6 @@
+---
+- name: Configure qdrant
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Restart qdrant if configuration changed
+  ansible.builtin.import_tasks: service.yml

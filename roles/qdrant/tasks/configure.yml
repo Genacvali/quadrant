@@ -1,0 +1,39 @@
+---
+- name: Determine API key
+  ansible.builtin.import_tasks: api_key.yml
+
+- name: Template qdrant configuration
+  ansible.builtin.template:
+    src: qdrant.yaml.j2
+    dest: "{{ qdrant_config_file }}"
+    owner: "{{ qdrant_user }}"
+    group: "{{ qdrant_group }}"
+    mode: "0600"
+  register: qdrant_config_result
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Template qdrant env file
+  ansible.builtin.template:
+    src: qdrant.env.j2
+    dest: "{{ qdrant_env_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: qdrant_env_result
+
+- name: Template qdrant systemd service
+  ansible.builtin.template:
+    src: qdrant.service.j2
+    dest: "{{ qdrant_service_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: qdrant_unit_result
+
+- name: Determine whether qdrant has to be restarted
+  ansible.builtin.set_fact:
+    qdrant_restart_required: >-
+      {{ (qdrant_binary_result is defined and qdrant_binary_result.changed | default(false))
+         or qdrant_config_result.changed | default(false)
+         or qdrant_env_result.changed | default(false)
+         or qdrant_unit_result.changed | default(false) }}

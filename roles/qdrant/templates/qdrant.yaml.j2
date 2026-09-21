@@ -1,0 +1,134 @@
+# {{ ansible_managed }}
+# Qdrant configuration
+
+log_level: {{ qdrant_log_level }}
+
+logger:
+  format: {{ qdrant_log_format }}
+{% if qdrant_log_to_file %}
+  on_disk:
+    enabled: true
+    log_file: {{ qdrant_log_file }}
+    log_level: {{ qdrant_log_level }}
+    format: {{ qdrant_log_format }}
+    buffer_size_bytes: 1024
+{% endif %}
+
+storage:
+  storage_path: {{ qdrant_storage_path }}
+  snapshots_path: {{ qdrant_snapshots_path }}
+  snapshots_config:
+    snapshots_storage: {{ qdrant_snapshots_storage }}
+  temp_path: null
+
+  # If true - point payloads are read from disk instead of being kept in memory
+  on_disk_payload: {{ qdrant_on_disk_payload | lower }}
+  update_concurrency: null
+
+  wal:
+    wal_capacity_mb: {{ qdrant_wal_capacity_mb }}
+    wal_segments_ahead: {{ qdrant_wal_segments_ahead }}
+
+  node_type: "Normal"
+
+  performance:
+    max_search_threads: {{ qdrant_max_search_threads }}
+    optimizer_cpu_budget: {{ qdrant_optimizer_cpu_budget }}
+    update_rate_limit: null
+    incoming_shard_transfers_limit: null
+    outgoing_shard_transfers_limit: null
+    async_scorer: {{ qdrant_async_scorer | lower }}
+
+  optimizers:
+    deleted_threshold: {{ qdrant_deleted_threshold }}
+    vacuum_min_vector_number: {{ qdrant_vacuum_min_vector_number }}
+    default_segment_number: {{ qdrant_default_segment_number }}
+    max_segment_size_kb: {{ qdrant_max_segment_size_kb | default('null') }}
+    indexing_threshold_kb: {{ qdrant_indexing_threshold_kb }}
+    flush_interval_sec: {{ qdrant_flush_interval_sec }}
+    max_optimization_threads: null
+
+  # Default HNSW index parameters, can be overridden per collection
+  hnsw_index:
+    m: {{ qdrant_hnsw_m }}
+    ef_construct: {{ qdrant_hnsw_ef_construct }}
+    full_scan_threshold_kb: {{ qdrant_hnsw_full_scan_threshold_kb }}
+    max_indexing_threads: 0
+    on_disk: {{ qdrant_hnsw_on_disk | lower }}
+    payload_m: null
+
+  # Default collection parameters
+  collection:
+    replication_factor: {{ qdrant_default_replication_factor }}
+    write_consistency_factor: {{ qdrant_default_write_consistency_factor }}
+    vectors:
+      on_disk: {{ qdrant_on_disk_vectors | default('null') }}
+    quantization: null
+
+  shard_transfer_method: null
+  max_collections: null
+
+service:
+  max_request_size_mb: {{ qdrant_request_size_limit_mb }}
+  # If 0 - available cores minus one
+  max_workers: {{ qdrant_max_workers }}
+
+  host: {{ qdrant_host }}
+  http_port: {{ qdrant_http_port }}
+  # If null - gRPC is disabled
+  grpc_port: {{ qdrant_grpc_port if qdrant_grpc_port else 'null' }}
+{% if qdrant_metrics_enabled and qdrant_metrics_port %}
+  # Separate port for /metrics (not protected by API key), for monitoring systems
+  metrics_port: {{ qdrant_metrics_port }}
+{% endif %}
+
+  enable_cors: {{ qdrant_enable_cors | lower }}
+
+  enable_tls: {{ qdrant_tls_enabled | lower }}
+{% if qdrant_tls_enabled %}
+  verify_https_client_certificate: {{ qdrant_tls_verify_enabled | lower }}
+{% endif %}
+
+{% if qdrant_api_key %}
+  # All requests must include header `api-key: <API-KEY>`
+  api_key: {{ qdrant_api_key }}
+{% endif %}
+{% if qdrant_read_only_api_key %}
+  read_only_api_key: {{ qdrant_read_only_api_key }}
+{% endif %}
+  # JWT RBAC: api_key is used as the JWT signing secret
+  jwt_rbac: {{ qdrant_jwt_rbac | lower }}
+
+  # Web UI (static content)
+  enable_static_content: {{ qdrant_web_ui_enabled | lower }}
+{% if qdrant_web_ui_enabled %}
+  static_content_dir: {{ qdrant_static_path }}
+{% endif %}
+{% if qdrant_metrics_enabled %}
+
+  metrics_prefix: {{ qdrant_metrics_prefix }}
+{% endif %}
+
+cluster:
+  enabled: {{ qdrant_cluster_enabled | lower }}
+  p2p:
+    port: {{ qdrant_p2p_port }}
+    enable_tls: {{ qdrant_p2p_tls_enabled | lower }}
+  consensus:
+    tick_period_ms: {{ qdrant_consensus_tick_period_ms }}
+    compact_wal_entries: {{ qdrant_consensus_compact_wal_entries }}
+
+telemetry_disabled: {{ qdrant_telemetry_disabled | lower }}
+{% if qdrant_tls_enabled or qdrant_p2p_tls_enabled %}
+
+# Required if service.enable_tls or cluster.p2p.enable_tls is true
+tls:
+  cert: {{ qdrant_tls_cert }}
+  key: {{ qdrant_tls_key }}
+{% if qdrant_tls_ca_cert %}
+  # Used to validate other cluster nodes and (if verify_https_client_certificate) HTTPS clients
+  ca_cert: {{ qdrant_tls_ca_cert }}
+{% endif %}
+  # Seconds between certificate reloads from disk (HTTPS only)
+  cert_ttl: 3600
+{% endif %}

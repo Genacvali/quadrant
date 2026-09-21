@@ -1,0 +1,44 @@
+---
+# Определение API-ключа:
+#   1. qdrant_api_key задан явно (inventory/vault) - используется как есть.
+#   2. Иначе - берётся из уже существующего конфига на хосте (идемпотентность).
+#   3. Иначе - генерируется на первом узле и раздаётся остальным узлам кластера.
+
+- name: Check if qdrant config already exists
+  ansible.builtin.stat:
+    path: "{{ qdrant_config_file }}"
+  register: qdrant_config_stat
+
+- name: Read existing qdrant config
+  ansible.builtin.slurp:
+    src: "{{ qdrant_config_file }}"
+  register: qdrant_existing_config
+  when:
+    - qdrant_api_key | length == 0
+    - qdrant_config_stat.stat.exists
+
+- name: Reuse API key from existing config
+  ansible.builtin.set_fact:
+    qdrant_api_key: "{{ ((qdrant_existing_config.content | b64decode | from_yaml).service | default({})).api_key | default('') | string }}"
+  no_log: true
+  when:
+    - qdrant_api_key | length == 0
+    - qdrant_config_stat.stat.exists
+
+- name: Generate API key on the first node
+  ansible.builtin.set_fact:
+    qdrant_api_key: "{{ lookup('password', '/dev/null', chars=['hexdigits'], length=64) | lower }}"
+  no_log: true
+  when:
+    - qdrant_api_key_generate | bool
+    - qdrant_api_key | length == 0
+    - qdrant_is_first_node
+
+- name: Share API key from the first node with the other nodes
+  ansible.builtin.set_fact:
+    qdrant_api_key: "{{ hostvars[qdrant_target_hosts[0]]['qdrant_api_key'] | default('') }}"
+  no_log: true
+  when:
+    - qdrant_api_key_generate | bool
+    - qdrant_api_key | length == 0
+    - not qdrant_is_first_node

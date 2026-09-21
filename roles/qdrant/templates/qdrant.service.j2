@@ -1,0 +1,33 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Qdrant Vector Search Engine
+After=network.target
+
+[Service]
+Type=simple
+User={{ qdrant_user }}
+Group={{ qdrant_group }}
+UMask=0027
+WorkingDirectory={{ qdrant_data_dir }}
+EnvironmentFile={{ qdrant_env_file }}
+
+TimeoutStartSec=300
+Restart=always
+RestartSec=10
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=32768
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ qdrant_data_dir }}
+
+ExecStart={{ qdrant_bin_path }} --config-path {{ qdrant_config_file }} --uri ${QDRANT_URI}{% if qdrant_cluster_enabled and not qdrant_is_first_node %} --bootstrap ${BOOTSTRAP_NODE}{% endif %}
+
+
+[Install]
+WantedBy=multi-user.target

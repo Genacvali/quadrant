@@ -1,0 +1,128 @@
+---
+# defaults file for qdrant
+
+# Core configuration
+qdrant_desired_action: "nothing"
+# Версия Qdrant (тег релиза на GitHub, с префиксом "v"). Задаётся в inventory.
+qdrant_version: "v1.19.1"
+qdrant_user: "qdrant"
+qdrant_group: "qdrant"
+
+# Download (Nexus proxy for github.com/qdrant/qdrant/releases)
+qdrant_nexus_base_url: "https://nexus.sberdevices.ru/repository/raw_github.com_qdrant_qdrant_releases_proxy/download"
+# Target triple бинарника. По умолчанию выбирается по архитектуре хоста (см. vars/main.yml).
+# Доступные варианты в релизах Qdrant:
+#   x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-musl,
+#   x86_64-apple-darwin, aarch64-apple-darwin
+qdrant_target_triple: "{{ qdrant_target_triple_map[ansible_architecture] | default('x86_64-unknown-linux-gnu') }}"
+qdrant_archive_name: "qdrant-{{ qdrant_target_triple }}.tar.gz"
+qdrant_download_url: "{{ qdrant_nexus_base_url }}/{{ qdrant_version }}/{{ qdrant_archive_name }}"
+qdrant_download_validate_certs: true
+qdrant_download_timeout: 120
+qdrant_bin_path: "/usr/local/bin/qdrant"
+qdrant_tmp_dir: "/tmp/qdrant-install"
+# Переустановить бинарник даже если установленная версия совпадает с qdrant_version
+qdrant_force_reinstall: false
+
+# Directory structure
+qdrant_data_dir: "/data/lib/qdrant"
+qdrant_storage_path: "{{ qdrant_data_dir }}"
+qdrant_snapshots_path: "{{ qdrant_data_dir }}/snapshots"
+qdrant_static_path: "{{ qdrant_data_dir }}/static"
+qdrant_log_file: "{{ qdrant_data_dir }}/qdrant.log"
+qdrant_config_dir: "/etc/qdrant"
+qdrant_config_file: "{{ qdrant_config_dir }}/qdrant.yaml"
+qdrant_env_file: "{{ qdrant_config_dir }}/qdrant.env"
+qdrant_tls_dir: "{{ qdrant_config_dir }}/ssl"
+qdrant_service_file: "/etc/systemd/system/qdrant.service"
+
+# Web UI (github.com/qdrant/qdrant-web-ui, архив dist-qdrant.zip)
+qdrant_web_ui_enabled: true
+# Если задан URL - архив будет скачан в qdrant_web_ui_archive.
+# Если URL пуст - роль ищет уже загруженный архив по пути qdrant_web_ui_archive (как в bash-скрипте).
+# Если архив не найден - установка web-ui пропускается.
+qdrant_web_ui_url: ""
+qdrant_web_ui_archive: "/tmp/dist-qdrant.zip"
+
+# Service configuration
+qdrant_host: "{{ ansible_default_ipv4.address }}"
+qdrant_http_port: 6333
+qdrant_grpc_port: 6334
+qdrant_p2p_port: 6335
+# Отдельный порт для /metrics (без API-key), для систем мониторинга
+qdrant_metrics_port: 6336
+
+# Cluster configuration
+qdrant_cluster_enabled: false
+
+# TLS configuration (using pre-prepared certificates)
+qdrant_tls_enabled: false
+qdrant_p2p_tls_enabled: false
+qdrant_tls_cert: "{{ qdrant_tls_dir }}/server.crt"
+qdrant_tls_key: "{{ qdrant_tls_dir }}/server.key"
+qdrant_tls_ca_cert: "{{ qdrant_tls_dir }}/server-ca.crt"
+qdrant_tls_verify_enabled: false
+
+# Performance configuration
+qdrant_max_workers: 0  # Auto-select based on CPU cores
+qdrant_max_search_threads: 0  # Auto-select based on CPU cores
+
+qdrant_request_size_limit_mb: 32
+
+# Logging configuration
+qdrant_log_level: "INFO"
+# text | json
+qdrant_log_format: "text"
+qdrant_log_to_file: true
+
+# Snapshot configuration
+qdrant_snapshots_storage: "local"
+
+# WAL configuration
+qdrant_wal_capacity_mb: 32
+qdrant_wal_segments_ahead: 0
+
+# Collection defaults
+qdrant_default_replication_factor: 1
+qdrant_default_write_consistency_factor: 1
+qdrant_on_disk_payload: true
+qdrant_on_disk_vectors: null
+
+# Optimization defaults
+qdrant_deleted_threshold: 0.2
+qdrant_vacuum_min_vector_number: 1000
+qdrant_default_segment_number: 0
+qdrant_max_segment_size_kb: null
+qdrant_indexing_threshold_kb: 10000
+qdrant_flush_interval_sec: 5
+
+# HNSW index defaults
+qdrant_hnsw_m: 16
+qdrant_hnsw_ef_construct: 100
+qdrant_hnsw_full_scan_threshold_kb: 10000
+qdrant_hnsw_on_disk: false
+
+# Performance advanced settings
+qdrant_optimizer_cpu_budget: 0
+qdrant_async_scorer: false
+
+# Cluster consensus configuration
+qdrant_consensus_tick_period_ms: 100
+qdrant_consensus_compact_wal_entries: 128
+
+# Security
+qdrant_enable_cors: true
+# API-ключ. Если пуст и qdrant_api_key_generate: true - берётся из существующего конфига,
+# а при его отсутствии генерируется автоматически (openssl rand -hex 32 эквивалент) и
+# распространяется на все узлы кластера.
+qdrant_api_key: ""
+qdrant_api_key_generate: true
+qdrant_read_only_api_key: null
+qdrant_jwt_rbac: true
+qdrant_telemetry_disabled: true
+# Показать API-ключ в итоговом выводе роли
+qdrant_show_api_key: true
+
+# Metrics
+qdrant_metrics_enabled: true
+qdrant_metrics_prefix: "qdrant_"

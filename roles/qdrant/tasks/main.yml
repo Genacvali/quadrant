@@ -1,0 +1,64 @@
+---
+# tasks file for qdrant
+
+- name: Always tasks
+  tags:
+    - always
+  block:
+    - name: Set qdrant_target_hosts
+      ansible.builtin.set_fact:
+        qdrant_target_hosts: "{{ ansible_play_batch }}"
+
+    # Используется импортируемой ролью sberdevices_infra.firewalld
+    - name: Get group name
+      ansible.builtin.set_fact:
+        master_group: "{{ (ansible_hostname | split('-'))[0] + '-' + (ansible_hostname | split('-'))[1] + '-' + (ansible_hostname | split('-'))[2] }}"
+
+    - name: Determine if this is the first node
+      ansible.builtin.set_fact:
+        qdrant_is_first_node: "{{ inventory_hostname == qdrant_target_hosts[0] }}"
+
+    - name: Save the first node ip address
+      ansible.builtin.set_fact:
+        qdrant_first_node_ip: "{{ hostvars[qdrant_target_hosts[0]]['ansible_default_ipv4']['address'] }}"
+
+    - name: Set p2p URIs
+      ansible.builtin.set_fact:
+        qdrant_p2p_uri: "http://{{ qdrant_host }}:{{ qdrant_p2p_port }}"
+        qdrant_bootstrap_uri: "http://{{ qdrant_first_node_ip }}:{{ qdrant_p2p_port }}"
+
+    - name: Set API scheme
+      ansible.builtin.set_fact:
+        qdrant_api_scheme: "{{ 'https' if qdrant_tls_enabled else 'http' }}"
+
+- name: Include firewalld vars
+  ansible.builtin.include_vars:
+    file: firewalld_vars.yml
+  when: qdrant_desired_action == "qdrant_install"
+  tags:
+    - qdrant_install
+
+- name: Include firewalld tasks
+  ansible.builtin.import_role:
+    name: sberdevices_infra.firewalld.firewalld
+  when: qdrant_desired_action == "qdrant_install"
+  tags:
+    - qdrant_install
+
+- name: Install qdrant
+  ansible.builtin.import_tasks: install.yml
+  when: qdrant_desired_action == "qdrant_install"
+  tags:
+    - qdrant_install
+
+- name: Update config
+  ansible.builtin.import_tasks: update_conf.yml
+  when: qdrant_desired_action == "qdrant_update_conf"
+  tags:
+    - qdrant_update_conf
+
+- name: Wipe qdrant
+  ansible.builtin.import_tasks: wipe.yml
+  when: qdrant_desired_action == "qdrant_wipe"
+  tags:
+    - qdrant_wipe

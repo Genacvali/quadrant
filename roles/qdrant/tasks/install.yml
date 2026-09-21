@@ -1,0 +1,208 @@
+---
+# === Пакеты ===
+- name: Install required packages
+  ansible.builtin.package:
+    name: "{{ qdrant_required_packages }}"
+    state: present
+  ignore_errors: "{{ ansible_check_mode }}"
+
+# === Пользователь и директории ===
+- name: Set qdrant group
+  ansible.builtin.group:
+    name: "{{ qdrant_group }}"
+    system: true
+    state: present
+
+- name: Set qdrant user
+  ansible.builtin.user:
+    name: "{{ qdrant_user }}"
+    group: "{{ qdrant_group }}"
+    system: true
+    shell: /sbin/nologin
+    state: present
+    comment: Qdrant vector database
+    create_home: false
+    home: "{{ qdrant_data_dir }}"
+
+- name: Create qdrant data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ qdrant_user }}"
+    group: "{{ qdrant_group }}"
+    mode: "0750"
+  loop:
+    - "{{ qdrant_data_dir }}"
+    - "{{ qdrant_storage_path }}"
+    - "{{ qdrant_snapshots_path }}"
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Create qdrant config directory
+  ansible.builtin.file:
+    path: "{{ qdrant_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create qdrant TLS directory
+  ansible.builtin.file:
+    path: "{{ qdrant_tls_dir }}"
+    state: directory
+    owner: "{{ qdrant_user }}"
+    group: "{{ qdrant_group }}"
+    mode: "0750"
+  when: qdrant_tls_enabled or qdrant_p2p_tls_enabled
+
+# === Бинарник Qdrant ===
+- name: Get installed qdrant version
+  ansible.builtin.command: "{{ qdrant_bin_path }} --version"
+  register: qdrant_installed_version_raw
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Set version facts
+  ansible.builtin.set_fact:
+    qdrant_installed_version: "{{ (qdrant_installed_version_raw.stdout | default('')) | regex_search('[0-9]+\\.[0-9]+\\.[0-9]+') | default('', true) }}"
+    qdrant_desired_version: "{{ qdrant_version | regex_replace('^v', '') }}"
+
+- name: Decide whether the binary has to be (re)installed
+  ansible.builtin.set_fact:
+    qdrant_install_binary: "{{ (qdrant_force_reinstall | bool) or (qdrant_installed_version != qdrant_desired_version) }}"
+
+- name: Show qdrant version info
+  ansible.builtin.debug:
+    msg: "Installed: '{{ qdrant_installed_version | default('none', true) }}', desired: '{{ qdrant_desired_version }}', install binary: {{ qdrant_install_binary }}"
+
+- name: Install qdrant binary
+  when: qdrant_install_binary | bool
+  ignore_errors: "{{ ansible_check_mode }}"
+  block:
+    - name: Create temporary directory
+      ansible.builtin.file:
+        path: "{{ qdrant_tmp_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Download qdrant {{ qdrant_version }} ({{ qdrant_target_triple }}) from Nexus
+      ansible.builtin.get_url:
+        url: "{{ qdrant_download_url }}"
+        dest: "{{ qdrant_tmp_dir }}/{{ qdrant_archive_name }}"
+        mode: "0644"
+        validate_certs: "{{ qdrant_download_validate_certs }}"
+        timeout: "{{ qdrant_download_timeout }}"
+
+    - name: Extract qdrant archive
+      ansible.builtin.unarchive:
+        src: "{{ qdrant_tmp_dir }}/{{ qdrant_archive_name }}"
+        dest: "{{ qdrant_tmp_dir }}"
+        remote_src: true
+
+    - name: Install qdrant binary to {{ qdrant_bin_path }}
+      ansible.builtin.copy:
+        src: "{{ qdrant_tmp_dir }}/qdrant"
+        dest: "{{ qdrant_bin_path }}"
+        owner: root
+        group: root
+        mode: "0755"
+        remote_src: true
+      register: qdrant_binary_result
+  always:
+    - name: Clean up temporary directory
+      ansible.builtin.file:
+        path: "{{ qdrant_tmp_dir }}"
+        state: absent
+
+# === Web UI ===
+- name: Install qdrant web UI
+  when: qdrant_web_ui_enabled | bool
+  ignore_errors: "{{ ansible_check_mode }}"
+  block:
+    - name: Download web UI archive
+      ansible.builtin.get_url:
+        url: "{{ qdrant_web_ui_url }}"
+        dest: "{{ qdrant_web_ui_archive }}"
+        mode: "0644"
+        validate_certs: "{{ qdrant_download_validate_certs }}"
+        timeout: "{{ qdrant_download_timeout }}"
+      when: qdrant_web_ui_url | length > 0
+
+    - name: Check web UI archive
+      ansible.builtin.stat:
+        path: "{{ qdrant_web_ui_archive }}"
+      register: qdrant_web_ui_archive_stat
+
+    - name: Web UI archive not found
+      ansible.builtin.debug:
+        msg: "Web UI archive {{ qdrant_web_ui_archive }} not found, web UI installation skipped"
+      when: not qdrant_web_ui_archive_stat.stat.exists
+
+    - name: Unpack and install web UI
+      when: qdrant_web_ui_archive_stat.stat.exists
+      block:
+        - name: Create temporary directory for web UI
+          ansible.builtin.file:
+            path: "{{ qdrant_tmp_dir }}-ui"
+            state: directory
+            mode: "0755"
+
+        - name: Extract web UI archive
+          ansible.builtin.unarchive:
+            src: "{{ qdrant_web_ui_archive }}"
+            dest: "{{ qdrant_tmp_dir }}-ui"
+            remote_src: true
+
+        - name: Check 'dist' directory in web UI archive
+          ansible.builtin.stat:
+            path: "{{ qdrant_tmp_dir }}-ui/dist"
+          register: qdrant_web_ui_dist_stat
+
+        - name: Web UI archive has no 'dist' directory
+          ansible.builtin.debug:
+            msg: "Archive {{ qdrant_web_ui_archive }} has no 'dist' directory, web UI installation skipped"
+          when: not qdrant_web_ui_dist_stat.stat.exists
+
+        - name: Create static directory
+          ansible.builtin.file:
+            path: "{{ qdrant_static_path }}"
+            state: directory
+            owner: "{{ qdrant_user }}"
+            group: "{{ qdrant_group }}"
+            mode: "0755"
+          when: qdrant_web_ui_dist_stat.stat.exists
+
+        - name: Copy web UI files to {{ qdrant_static_path }}
+          ansible.builtin.copy:
+            src: "{{ qdrant_tmp_dir }}-ui/dist/"
+            dest: "{{ qdrant_static_path }}/"
+            owner: "{{ qdrant_user }}"
+            group: "{{ qdrant_group }}"
+            mode: "u=rwX,g=rX,o=rX"
+            remote_src: true
+          when: qdrant_web_ui_dist_stat.stat.exists
+      always:
+        - name: Clean up web UI temporary directory
+          ansible.builtin.file:
+            path: "{{ qdrant_tmp_dir }}-ui"
+            state: absent
+
+# === Конфиг, env-файл, systemd unit ===
+- name: Configure qdrant
+  ansible.builtin.import_tasks: configure.yml
+
+# === Старт сервиса ===
+- name: Start qdrant
+  ansible.builtin.import_tasks: service.yml
+
+- name: Qdrant installation summary
+  ansible.builtin.debug:
+    msg:
+      - "Qdrant {{ qdrant_version }} installed"
+      - "HTTP:    {{ qdrant_api_scheme }}://{{ qdrant_host }}:{{ qdrant_http_port }}"
+      - "gRPC:    {{ qdrant_host }}:{{ qdrant_grpc_port }}"
+      - "Metrics: http://{{ qdrant_host }}:{{ qdrant_metrics_port }}/metrics"
+      - "Cluster: {{ qdrant_p2p_uri }} (enabled: {{ qdrant_cluster_enabled }}, bootstrap: {{ qdrant_bootstrap_uri }})"
+      - "Config:  {{ qdrant_config_file }}"
+      - "Data:    {{ qdrant_data_dir }}"
+      - "API_KEY: {{ qdrant_api_key if qdrant_show_api_key else '<hidden>' }}"
